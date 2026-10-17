@@ -178,16 +178,27 @@ private fun FarmScreen(
             title = { Text("Import farm labels") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Paste one farm name per line. Login tokens are not imported or used.")
+                    Text("One entry per line: ID,Pass,Token (or ID|Pass|Token). For safety, only the ID is saved as a local label; Pass and Token are ignored and never used to log in or switch accounts.")
                     OutlinedTextField(value = importText, onValueChange = { importText = it },
-                        modifier = Modifier.fillMaxWidth().height(180.dp), placeholder = { Text("Farm 1\nFarm 2\nFarm 3") })
+                        modifier = Modifier.fillMaxWidth().height(180.dp), placeholder = { Text("farm123,Pass-ignored,Token-ignored\nfarm456|Pass-ignored|Token-ignored\nMy farm") })
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val names = importText.lines().map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-                    names.forEach { onSave(it, groupName.ifBlank { "main" }, "", false, "", defaults) }
-                    error = "Imported ${names.size} farm labels locally."
+                    val entries = importText.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                    val labels = entries.map { line ->
+                        val fields = when {
+                            line.contains("|") -> line.split("|", limit = 3)
+                            line.contains(",") -> line.split(",", limit = 3)
+                            else -> listOf(line)
+                        }
+                        fields.first().trim()
+                    }.filter { it.isNotEmpty() }.distinct()
+                    labels.forEach { id ->
+                        val label = if (id.length > 28) id.take(28) else id
+                        onSave("Farm $label", groupName.ifBlank { "main" }, id, false, "", defaults)
+                    }
+                    error = "Imported ${labels.size} local labels. Passwords/tokens were ignored."
                     importText = ""; showImport = false
                 }) { Text("IMPORT") }
             },
