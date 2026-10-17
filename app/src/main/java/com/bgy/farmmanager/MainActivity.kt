@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,6 +92,10 @@ private fun FarmScreen(
     val defaults = listOf(false, false, false, true, true, false)
     val flags = remember { mutableStateListOf(false, false, false, true, true, false) }
     var error by remember { mutableStateOf("") }
+    var search by remember { mutableStateOf("") }
+    var showImport by remember { mutableStateOf(false) }
+    var importText by remember { mutableStateOf("") }
+    val clipboard = LocalClipboardManager.current
 
     Column(
         modifier = Modifier.fillMaxSize().background(Screen).padding(16.dp),
@@ -100,6 +106,11 @@ private fun FarmScreen(
             Text("●", color = Color(0xFF4BD38A))
             Spacer(Modifier.width(8.dp))
             Text("LOCAL FARM MANAGER", color = Muted, fontSize = 12.sp)
+        }
+        OutlinedTextField(value = search, onValueChange = { search = it }, label = { Text("Search Farm...") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { showImport = true }, modifier = Modifier.weight(1f)) { Text("IMPORT") }
+            Button(onClick = { clipboard.setText(AnnotatedString(farms.joinToString("\n") { "${it.group_id},${it.farm_name},${it.game_id}" })); error = "Farm labels copied to clipboard." }, modifier = Modifier.weight(1f)) { Text("EXPORT LIST") }
         }
         Text("New Farm", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         OutlinedTextField(value = farmName, onValueChange = { farmName = it },
@@ -143,7 +154,7 @@ private fun FarmScreen(
             shape = RoundedCornerShape(14.dp)) { Text("OPEN HAY DAY") }
         Text("Saved farms (${farms.size})", color = Color.White, fontWeight = FontWeight.Bold)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(farms, key = { it.id }) { farm ->
+            items(farms.filter { it.farm_name.contains(search, ignoreCase = true) || it.group_id.contains(search, ignoreCase = true) }, key = { it.id }) { farm ->
                 Card(modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Panel)) {
                     Row(modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -160,5 +171,27 @@ private fun FarmScreen(
                 }
             }
         }
+    }
+    if (showImport) {
+        AlertDialog(
+            onDismissRequest = { showImport = false },
+            title = { Text("Import farm labels") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Paste one farm name per line. Login tokens are not imported or used.")
+                    OutlinedTextField(value = importText, onValueChange = { importText = it },
+                        modifier = Modifier.fillMaxWidth().height(180.dp), placeholder = { Text("Farm 1\nFarm 2\nFarm 3") })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val names = importText.lines().map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+                    names.forEach { onSave(it, groupName.ifBlank { "main" }, "", false, "", defaults) }
+                    error = "Imported ${names.size} farm labels locally."
+                    importText = ""; showImport = false
+                }) { Text("IMPORT") }
+            },
+            dismissButton = { TextButton(onClick = { showImport = false }) { Text("CANCEL") } }
+        )
     }
 }
