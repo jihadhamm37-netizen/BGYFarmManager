@@ -93,6 +93,8 @@ private fun FarmScreen(
     val flags = remember { mutableStateListOf(false, false, false, true, true, false) }
     var error by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
+    var selectedGroup by remember { mutableStateOf("All") }
+    var importPrefix by remember { mutableStateOf("") }
     var showImport by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
     val clipboard = LocalClipboardManager.current
@@ -108,6 +110,14 @@ private fun FarmScreen(
             Text("LOCAL FARM MANAGER", color = Muted, fontSize = 12.sp)
         }
         OutlinedTextField(value = search, onValueChange = { search = it }, label = { Text("Search Farm...") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        val groups = listOf("All") + farms.map { it.group_id }.distinct().sorted()
+        Text("FARM GROUPS  •  ${farms.size} FARMS", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            groups.take(4).forEach { group ->
+                FilterChip(selected = selectedGroup == group, onClick = { selectedGroup = group },
+                    label = { Text(if (group == "All") "All (${farms.size})" else "${group} (${farms.count { it.group_id == group }})") })
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = { showImport = true }, modifier = Modifier.weight(1f)) { Text("IMPORT") }
             Button(onClick = { clipboard.setText(AnnotatedString(farms.joinToString("\n") { "${it.group_id},${it.farm_name},${it.game_id}" })); error = "Farm labels copied to clipboard." }, modifier = Modifier.weight(1f)) { Text("EXPORT LIST") }
@@ -154,7 +164,7 @@ private fun FarmScreen(
             shape = RoundedCornerShape(14.dp)) { Text("OPEN HAY DAY") }
         Text("Saved farms (${farms.size})", color = Color.White, fontWeight = FontWeight.Bold)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(farms.filter { it.farm_name.contains(search, ignoreCase = true) || it.group_id.contains(search, ignoreCase = true) }, key = { it.id }) { farm ->
+            items(farms.filter { (it.farm_name.contains(search, ignoreCase = true) || it.group_id.contains(search, ignoreCase = true) || it.game_id.contains(search, ignoreCase = true)) && (selectedGroup == "All" || it.group_id == selectedGroup) }, key = { it.id }) { farm ->
                 Card(modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Panel)) {
                     Row(modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -178,9 +188,10 @@ private fun FarmScreen(
             title = { Text("Import farm labels") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("One entry per line: ID,Pass,Token (or ID|Pass|Token). For safety, only the ID is saved as a local label; Pass and Token are ignored and never used to log in or switch accounts.")
+                    Text("One entry per line: ID,Pass,Token or ID|Pass|Token. Only the ID is imported; passwords and tokens are ignored. You can add a prefix to each imported farm name.")
+                    OutlinedTextField(value = importPrefix, onValueChange = { importPrefix = it }, label = { Text("Farm name prefix (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     OutlinedTextField(value = importText, onValueChange = { importText = it },
-                        modifier = Modifier.fillMaxWidth().height(180.dp), placeholder = { Text("farm123,Pass-ignored,Token-ignored\nfarm456|Pass-ignored|Token-ignored\nMy farm") })
+                        modifier = Modifier.fillMaxWidth().height(150.dp), placeholder = { Text("farm123,Pass-ignored,Token-ignored\nfarm456|Pass-ignored|Token-ignored\nMy farm") })
                 }
             },
             confirmButton = {
@@ -196,7 +207,7 @@ private fun FarmScreen(
                     }.filter { it.isNotEmpty() }.distinct()
                     labels.forEach { id ->
                         val label = if (id.length > 28) id.take(28) else id
-                        onSave("Farm $label", groupName.ifBlank { "main" }, id, false, "", defaults)
+                        onSave("${importPrefix.trim()}$label", groupName.ifBlank { "main" }, id, false, "", defaults)
                     }
                     error = "Imported ${labels.size} local labels. Passwords/tokens were ignored."
                     importText = ""; showImport = false
