@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tap_helper_description">User-configured tap helper for screen automation</string>
+</resources>
